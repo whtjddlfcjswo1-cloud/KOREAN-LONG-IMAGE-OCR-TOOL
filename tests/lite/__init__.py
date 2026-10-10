@@ -1,0 +1,1 @@
+"""LongImageOCR Lite tests."""
