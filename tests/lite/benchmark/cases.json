@@ -1,0 +1,18 @@
+{
+  "categories": [
+    "long Korean screenshot",
+    "transaction/payment history",
+    "dense table",
+    "mixed Korean/English/numeric text",
+    "small-font UI screenshot",
+    "repeated rows near segment boundaries"
+  ],
+  "comparison": ["native", "lite", "full-when-practical"],
+  "metrics": [
+    "CER",
+    "WER",
+    "line precision/recall/F1",
+    "duplicate-line count",
+    "numeric-token accuracy"
+  ]
+}

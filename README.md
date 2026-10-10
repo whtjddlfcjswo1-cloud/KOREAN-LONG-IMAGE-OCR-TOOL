@@ -1,7 +1,7 @@
 # LongImageOCR
 
-> **Multi-AI Shared Ultra-Long Screenshot & Document OCR Engine**  
-> *Native-Resolution Preservation • Smart Content-Density Tiling • Overlap Deduplication • Low-Confidence Audit • Official Multi-AI MCP Server*
+> **Multi-AI Long-Image OCR Toolkit — Lite Skill + Full OCR Engine**  
+> *Native-Vision Skill • Native-Resolution Full Engine • Smart Tiling • Precision Audit*
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python: 3.10 | 3.11 | 3.12](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-brightgreen.svg)](https://python.org)
@@ -11,19 +11,33 @@
 
 ---
 
-## 1. Why LongImageOCR?
+## Choose your path
 
-When ultra-long vertical images (e.g., mobile screenshots `1080×24000`, chat threads, stock apps, developer logs) are fed directly into multimodal AI Vision models (ChatGPT, Gemini, Claude), the image is aggressively **downscaled to ~1000–2048px**.
+### LongImageOCR Lite
 
-This downscaling turns critical financial tickers, percentages, Korean syllables, and table cells into illegible pixel blur.
+**LongImageOCR Lite** is the default low-friction option for ChatGPT and Gemini users. It is a skill-only workflow that improves long-image and OCR-sensitive reading using the host model's **native vision**. It needs no OCR server at use time and does not run RapidOCR, ONNX, Python, MCP, Cloud Run, or GCS.
 
-**LongImageOCR** solves this by enforcing a single immutable rule:
+Lite turns the design lessons from the Full engine into a seven-phase model inspection protocol: layout reconnaissance, segmented reading, boundary reconciliation, precision pass, low-confidence pass, reconstruction, and audit.
+
+See [`docs/lite/README.md`](docs/lite/README.md).
+
+### LongImageOCR Full
+
+**LongImageOCR Full** is the existing native-resolution OCR engine described below. It performs real deterministic tiling, PP-OCRv5 recognition, low-confidence retry, overlap-aware merging, and MCP integration. Use Full when native model vision remains insufficient, exact digits matter, or reproducible OCR output is required. Remote use may involve a server; local/self-hosted use can run directly on your own machine.
+
+---
+
+## 1. Why LongImageOCR Full?
+
+When ultra-long vertical images (e.g., mobile screenshots `1080×24000`, chat threads, stock apps, developer logs) are fed directly into multimodal AI Vision models (ChatGPT, Gemini, Claude), image handling can make small text, financial tickers, percentages, Korean syllables, and table cells difficult to read reliably.
+
+**LongImageOCR Full** solves this with an explicit native-resolution OCR pipeline:
 
 ```text
 NEVER resize the entire long screenshot for OCR.
 ```
 
-Instead, LongImageOCR:
+Instead, LongImageOCR Full:
 1. Detects long images automatically (`height > 4000px` or `aspect_ratio > 3.0`).
 2. Analyzes **horizontal content density** to slice at safe whitespace boundaries.
 3. Slices overlapping tiles while **preserving 100% native resolution**.
@@ -38,20 +52,25 @@ Instead, LongImageOCR:
 ## 2. Architecture
 
 ```text
-LongImageOCR Core
+LongImageOCR
        │
-       ├── CLI (longocr / python -m longocr.cli)
-       ├── MCP Server (longocr-mcp / python -m longocr.mcp_server)
-       ├── Gemini Adapter / Skill (adapters/gemini)
-       ├── Codex Adapter / Tool (adapters/codex)
-       └── Claude Adapter / MCP (adapters/claude)
+       ├── Lite Skill
+       │   ├── ChatGPT skills-only Agent Plugin
+       │   └── Gemini Workspace Studio Skill
+       │
+       └── Full Engine
+           ├── CLI (longocr / python -m longocr.cli)
+           ├── MCP Server (longocr-mcp / python -m longocr.mcp_server)
+           ├── Gemini Adapter / Skill (adapters/gemini)
+           ├── Codex Adapter / Tool (adapters/codex)
+           └── Claude Adapter / MCP (adapters/claude)
 ```
 
-No AI adapter contains duplicate OCR logic. All adapters point to the core pipeline.
+Lite and Full share the same reliability principles, but Lite contains no external OCR runtime.
 
 ---
 
-## 3. Quick Start
+## 3. Full Engine Quick Start
 
 ### Installation
 
@@ -81,7 +100,7 @@ The default mode is `hybrid`.
 
 ---
 
-## 4. Output Artifacts
+## 4. Full Engine Output Artifacts
 
 ```text
 ocr_output/screenshot/
@@ -115,7 +134,7 @@ python -m longocr.mcp_server
 
 ---
 
-## 6. AI Agent Adapters
+## 6. Full Engine AI Agent Adapters
 
 - **Gemini CLI / Antigravity**: [`adapters/gemini/settings.json`](adapters/gemini/settings.json)
 - **OpenAI Codex**: [`adapters/codex/config.toml`](adapters/codex/config.toml), [`adapters/codex/AGENTS.md`](adapters/codex/AGENTS.md)
@@ -136,11 +155,11 @@ Low-confidence boxes are reprocessed from native-resolution crops. Spatial align
 
 ---
 
-## 8. Benchmark Summary
+## 8. Full Engine Benchmark Summary
 
-Fresh uncached preview benchmark results reported by the release candidate:
+The following values belong to the existing **Full engine** preview benchmark. They are not Lite-vs-native results.
 
-| Scenario | Domain | Baseline Recall | LongImageOCR Recall | Precision / F1 | Key Metric Highlights |
+| Scenario | Domain | Baseline Recall | LongImageOCR Full Recall | Precision / F1 | Key Metric Highlights |
 | :--- | :--- | :---: | :---: | :---: | :--- |
 | **Test A** | Document (12k px) | 0.52% | **66.67%** | 96.97% / 79.01% | CER **0.3151** vs 1.0077 |
 | **Test B** | Finance (14k px) | 0.0% | **90.57%** | 97.82% / 94.06% | 100% ticker, 85.19% exact number |
@@ -148,7 +167,7 @@ Fresh uncached preview benchmark results reported by the release candidate:
 | **Test D** | Table (12k px) | 1.06% cell | **77.52% cell** | 97.07% / 86.20% | 68.44% row exact, 79.79% row fuzzy |
 | **Test E** | Console Log (12k px) | 0.0% | **95.35%** | 99.16% / 97.22% | 100% level token, 95.14% request ID |
 
-Evaluator primitives are kept in [`tests/benchmark_comparison.py`](tests/benchmark_comparison.py). The full preview archive can carry the generated synthetic benchmark images and detailed OCR artifacts without bloating Git history.
+Evaluator primitives are kept in [`tests/benchmark_comparison.py`](tests/benchmark_comparison.py). Lite has a separate native-vs-Lite benchmark harness under `tests/lite/benchmark/`; measured model results should only be published after running comparable host/model trials.
 
 ---
 
