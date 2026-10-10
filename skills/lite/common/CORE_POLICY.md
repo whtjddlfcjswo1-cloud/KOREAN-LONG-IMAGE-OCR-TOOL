@@ -45,7 +45,7 @@ Use crop, zoom, or region reinspection only when the host actually exposes that 
 
 ## Phase 3 — Boundary reconciliation
 
-At each adjacent region or screenshot boundary, check for split sentences, split rows, repeated headers, truncated numbers, skipped transitions, and overlap duplicates.
+At each adjacent region or screenshot boundary, check for split sentences, split rows, repeated headers, truncated numbers, **missing rows**, skipped transitions, and overlap duplicates.
 
 Remove only duplicates introduced by overlap or repeated inspection. Preserve legitimate repeated source content. When several screenshots are consecutive scroll captures, do not count the same visible transaction twice merely because it appears in the overlap.
 
