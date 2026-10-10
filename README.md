@@ -13,7 +13,7 @@
 
 ## 1. Why LongImageOCR?
 
-When ultra-long vertical images (e.g., mobile screenshots `1080×24000`, chat threads, stock apps, developer logs) are fed directly into multimodal AI Vision models (ChatGPT, Gemini, Claude), the image is aggressively **downscaled to ~1000–2048px**. 
+When ultra-long vertical images (e.g., mobile screenshots `1080×24000`, chat threads, stock apps, developer logs) are fed directly into multimodal AI Vision models (ChatGPT, Gemini, Claude), the image is aggressively **downscaled to ~1000–2048px**.
 
 This downscaling turns critical financial tickers, percentages, Korean syllables, and table cells into illegible pixel blur.
 
@@ -27,11 +27,11 @@ Instead, LongImageOCR:
 1. Detects long images automatically (`height > 4000px` or `aspect_ratio > 3.0`).
 2. Analyzes **horizontal content density** to slice at safe whitespace boundaries.
 3. Slices overlapping tiles while **preserving 100% native resolution**.
-4. Performs OCR with official PP-OCRv5 Korean & English models on CPU (via ONNXRuntime).
-5. Executes **native-resolution retries** on low-confidence boxes with spatial IoU candidate gating to prevent adjacent line misreplacement.
+4. Performs OCR with PP-OCRv5 Korean & English models on CPU (via ONNXRuntime).
+5. Executes **native-resolution retries** on low-confidence boxes with spatial candidate gating to prevent adjacent-line misreplacement.
 6. Maps bounding boxes to global coordinates and **deduplicates overlaps** with strict numerical validation.
-7. Synthesizes clean GitHub-Flavored Markdown tables and an audit trail.
-8. Exposes an **official MCP Server (`longocr-mcp`)** so all AI agents (Gemini, Claude, Codex) call the exact same engine with built-in output pagination.
+7. Synthesizes Markdown/plaintext plus an audit trail.
+8. Exposes an **MCP Server (`longocr-mcp`)** so Gemini, Claude, Codex, and other MCP clients can call the same engine with paginated output.
 
 ---
 
@@ -41,7 +41,7 @@ Instead, LongImageOCR:
 LongImageOCR Core
        │
        ├── CLI (longocr / python -m longocr.cli)
-       ├── Official MCP Server (longocr-mcp / python -m longocr.mcp_server)
+       ├── MCP Server (longocr-mcp / python -m longocr.mcp_server)
        ├── Gemini Adapter / Skill (adapters/gemini)
        ├── Codex Adapter / Tool (adapters/codex)
        └── Claude Adapter / MCP (adapters/claude)
@@ -56,14 +56,11 @@ No AI adapter contains duplicate OCR logic. All adapters point to the core pipel
 ### Installation
 
 ```bash
-# Clone the repository
-git clone https://github.com/your-org/LongImageOCR.git
-cd LongImageOCR
-
-# Install package and dependencies in editable mode
+git clone https://github.com/whtjddlfcjswo1-cloud/KOREAN-LONG-IMAGE-OCR-TOOL.git
+cd KOREAN-LONG-IMAGE-OCR-TOOL
 pip install -e .
 
-# Or run the platform installer
+# Or use the platform installer
 # Windows:
 powershell -ExecutionPolicy Bypass -File scripts/install.ps1
 # Linux/macOS:
@@ -73,51 +70,33 @@ bash scripts/install.sh
 ### Basic CLI Usage
 
 ```bash
-# Fast mode (Official PP-OCRv5 Korean ONNX on CPU)
-longocr screenshot.png --mode fast --out-dir ./output
-
-# Accurate mode (Adaptive PaddleOCR 2.x/3.x with fallback)
-longocr screenshot.png --mode accurate --out-dir ./output
-
-# Hybrid mode (Fast Engine + Native-Resolution Retry)
-longocr screenshot.png --mode hybrid --out-dir ./output
-
-# Custom tile height and overlap
+longocr screenshot.png --mode fast --output ./output
+longocr screenshot.png --mode accurate --output ./output
+longocr screenshot.png --mode hybrid --output ./output
 longocr screenshot.png --tile-height 2200 --overlap 220
-
-# Invocation via Python module (default mode: hybrid)
 python -m longocr.cli screenshot.png --mode hybrid
 ```
+
+The default mode is `hybrid`.
 
 ---
 
 ## 4. Output Artifacts
 
-Each OCR operation generates a structured output directory:
-
 ```text
 ocr_output/screenshot/
-├── output.md          # Reconstructed GitHub-Flavored Markdown document
-├── output.txt         # Clean plain text line-by-line
-├── ocr.json           # Fine-grained bounding box coordinates & confidences
-├── manifest.json      # Processing metadata, tile coordinates, time elapsed, fallback flag
-├── audit.md           # Audit report of low-confidence detections & merges
-├── tiles/             # Saved native-resolution slice tiles
-│   ├── tile_001.png
-│   ├── tile_002.png
-│   └── ...
-└── low_confidence/    # High-resolution crops of ambiguous regions
-    ├── crop_tile001_002.png
-    └── ...
+├── output.md
+├── output.txt
+├── ocr.json
+├── manifest.json
+├── audit.md
+├── tiles/
+└── low_confidence/
 ```
 
 ---
 
 ## 5. Model Context Protocol (MCP) Server
-
-LongImageOCR provides an official Model Context Protocol server (`longocr/mcp_server.py`) using the official `mcp` Python SDK:
-
-### Launching the MCP Server
 
 ```bash
 longocr-mcp
@@ -129,68 +108,61 @@ python -m longocr.mcp_server
 
 | Tool Name | Parameters | Description |
 | :--- | :--- | :--- |
-| `long_image_ocr` | `image_path`, `mode="hybrid"`, `language="ko"`, `return_full_text=false` | Primary native-resolution smart-tiling OCR tool (default mode: `hybrid`). Returns safe preview and output paths by default to avoid flooding agent context. |
-| `read_ocr_output` | `output_dir`, `format="markdown"`, `offset=0`, `limit=4000` | Paginated retrieval tool supporting large document inspection without context overflow. |
-| `inspect_ocr_region` | `image_path`, `y_start`, `y_end`, `language="ko"` | Crops and evaluates a specific vertical band, preserving full global Y coordinates. |
+| `long_image_ocr` | `image_path`, `mode="hybrid"`, `language="ko"`, `return_full_text=false` | Primary native-resolution smart-tiling OCR tool. Returns a compact preview and artifact paths by default. |
+| `read_ocr_output` | `output_dir`, `format="markdown"`, `offset=0`, `limit=4000` | Paginated retrieval for large OCR output. |
+| `inspect_ocr_region` | `image_path`, `y_start`, `y_end`, `language="ko"` | Re-OCRs a vertical band while preserving original-image global Y coordinates. |
 | `ocr_status` | `output_dir` | Returns manifest metadata and audit preview for a completed OCR job. |
 
 ---
 
 ## 6. AI Agent Adapters
 
-- **Gemini CLI / Antigravity**: Configured via [`adapters/gemini/settings.json`](adapters/gemini/settings.json).
-- **OpenAI Codex**: Configured via [`adapters/codex/config.toml`](adapters/codex/config.toml).
-- **Claude Desktop & Claude Code**: Configured via [`adapters/claude/claude_desktop_config.json`](adapters/claude/claude_desktop_config.json) and agent operating rules in [`adapters/claude/CLAUDE.md`](adapters/claude/CLAUDE.md).
+- **Gemini CLI / Antigravity**: [`adapters/gemini/settings.json`](adapters/gemini/settings.json)
+- **OpenAI Codex**: [`adapters/codex/config.toml`](adapters/codex/config.toml), [`adapters/codex/AGENTS.md`](adapters/codex/AGENTS.md)
+- **Claude Desktop / Claude Code**: [`adapters/claude/claude_desktop_config.json`](adapters/claude/claude_desktop_config.json), [`adapters/claude/CLAUDE.md`](adapters/claude/CLAUDE.md)
 
 ---
 
 ## 7. Key Algorithmic Features
 
-### 7.1 Smart Safe-Cut Slicing
-Instead of cutting at arbitrary pixel heights, LongImageOCR measures vertical gradient profiles and pixel variances to discover natural whitespace breaks between paragraphs or chat bubbles. If no empty space is found within $\pm 300\text{px}$, it falls back to overlap slicing.
+### Smart Safe-Cut Slicing
+LongImageOCR measures row content density and variance to prefer low-content cut points. When a safe boundary cannot be found, it falls back to overlap slicing.
 
-### 7.2 Strict Numeric Preservation & Overlap Deduplication
-When duplicate text appears in overlapping tiles, deduplication matches text and global coordinates.
-If numerical sequences differ (e.g., `평가금액 1,234,500원` vs `평가금액 1,234,800원`), **merging is strictly prohibited**, preventing financial inaccuracies.
+### Strict Numeric Preservation
+If overlapping OCR candidates contain conflicting numeric tokens (for example `1,234,500` vs `1,234,800`), they are not merged as duplicates.
 
-### 7.3 Safe Low-Confidence Retry Candidate Gating
-Any detection with confidence $< 0.75$ triggers a localized crop from the original unscaled image. The candidate must pass 2D spatial IoU, center distance, and text compatibility checks (`is_valid_retry_candidate`). Adjacent lines (`옆줄텍스트`) are rejected, safely preserving the original detection if no valid enhancement match exists.
+### Safe Low-Confidence Retry
+Low-confidence boxes are reprocessed from native-resolution crops. Spatial alignment and text/numeric compatibility are checked before a retry candidate can replace the original OCR result.
 
 ---
 
 ## 8. Benchmark Summary
 
-Evaluated against the downscaled baseline across 5 domain test suites using true 1-to-1 Hungarian Maximum Bipartite Matching in strictly uncached mode (`enable_cache=False`):
+Fresh uncached preview benchmark results reported by the release candidate:
 
 | Scenario | Domain | Baseline Recall | LongImageOCR Recall | Precision / F1 | Key Metric Highlights |
 | :--- | :--- | :---: | :---: | :---: | :--- |
-| **Test A** | Document (12k px) | 0.52% | **66.67%** | 96.97% / 79.01% | CER: **0.3151** (vs 1.0077) |
-| **Test B** | Finance (14k px) | 0.0% | **90.57%** | 97.82% / 94.06% | **100% Ticker**, **85.19% Exact Number**, **92.59% Field** |
-| **Test C** | Chat UI (12k px) | 0.0% | **86.36%** | 93.44% / 89.76% | **100% Sender**, **80% Timestamp**, **72.73% Message** |
-| **Test D** | Table (12k px) | 1.06% (Cell) | **77.52%** (Cell) | 97.07% / 86.20% | **68.44% Row Exact**, **79.79% Row Fuzzy**, **99.56% Col Align** |
-| **Test E** | Console Log (12k px) | 0.0% | **95.35%** | 99.16% / 97.22% | **100% Level Token**, **95.14% Request ID Accuracy** |
+| **Test A** | Document (12k px) | 0.52% | **66.67%** | 96.97% / 79.01% | CER **0.3151** vs 1.0077 |
+| **Test B** | Finance (14k px) | 0.0% | **90.57%** | 97.82% / 94.06% | 100% ticker, 85.19% exact number |
+| **Test C** | Chat UI (12k px) | 0.0% | **86.36%** | 93.44% / 89.76% | 100% sender, 80% timestamp |
+| **Test D** | Table (12k px) | 1.06% cell | **77.52% cell** | 97.07% / 86.20% | 68.44% row exact, 79.79% row fuzzy |
+| **Test E** | Console Log (12k px) | 0.0% | **95.35%** | 99.16% / 97.22% | 100% level token, 95.14% request ID |
 
-*Full details and failure analysis: [`test_results/comparison_summary.md`](test_results/comparison_summary.md) and [`TEST_REPORT.md`](TEST_REPORT.md).*
+Evaluator primitives are kept in [`tests/benchmark_comparison.py`](tests/benchmark_comparison.py). The full preview archive can carry the generated synthetic benchmark images and detailed OCR artifacts without bloating Git history.
 
 ---
 
 ## 9. Inspired by / References
 
-We gratefully acknowledge the algorithmic patterns, research, and ideas from the following open-source projects:
+1. **[Anionex/agent-vision-toolkit](https://github.com/Anionex/agent-vision-toolkit)** — long screenshot chunking, safe-cut and audit ideas.
+2. **[Anionex/dsh-vision-toolkit](https://github.com/Anionex/dsh-vision-toolkit)** — agent tool and manifest patterns.
+3. **[Yuff1010/Manga-Overlay-Translator](https://github.com/Yuff1010/Manga-Overlay-Translator)** — native-resolution retry and tiling ideas.
+4. **Webtoon tiling/scanlation patterns** — coordinate restoration and overlap concepts.
 
-1. **[Anionex/agent-vision-toolkit](https://github.com/Anionex/agent-vision-toolkit)** (MIT License):
-   - Architectural inspiration for long screenshot chunking, content-density safe cuts, overlap management, Markdown merging, and audit trail generation.
-2. **[Anionex/dsh-vision-toolkit](https://github.com/Anionex/dsh-vision-toolkit)** (MIT License):
-   - Inspiration for AI agent tool interfaces, structured manifest designs, and OCR sidecar files.
-3. **[Yuff1010/Manga-Overlay-Translator](https://github.com/Yuff1010/Manga-Overlay-Translator)** (MIT License):
-   - Inspiration for native-resolution retry on low-confidence regions, coordinate restoration, and PaddleOCR tiling integration.
-4. **Webtoon Scanlation & Tiling Methodologies (vasmks / toontra / Community Art)**:
-   - Concepts of global coordinate mapping ($y_{global} = y_{local} + y_{start}$), tile ownership, and Non-Maximum Suppression (NMS) for overlapping slices.
-
-*See [`LICENSE_REVIEW.md`](LICENSE_REVIEW.md) for detailed intellectual property review.*
+See [`LICENSE_REVIEW.md`](LICENSE_REVIEW.md) for the project’s license review.
 
 ---
 
 ## 10. License
 
-This project is licensed under the [MIT License](LICENSE).
+MIT License. See [LICENSE](LICENSE).
