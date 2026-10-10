@@ -1,17 +1,25 @@
 ---
 name: long-image-ocr-lite
-description: Improve reading of long screenshots, dense documents, tables, and OCR-sensitive images using a disciplined native-vision inspection workflow without an external OCR server.
+description: Use when reading, transcribing, extracting, or verifying long screenshots, dense document images, tables, transaction histories, receipts, chats, logs, or other OCR-sensitive visual content.
 ---
 
 # LongImageOCR Lite
 
-Use this skill when the user asks you to read, transcribe, extract, verify, or summarize text from a long screenshot, dense document image, table, payment history, chat/log capture, or other OCR-sensitive image.
+LongImageOCR Lite is an **instruction-only, evidence-only native-vision workflow**. It does not invoke LongImageOCR Full or any external OCR runtime.
 
-LongImageOCR Lite is a **skill-only native-vision workflow**. It does not invoke LongImageOCR Full or any external OCR runtime.
+## Evidence gate
+
+Before using the seven-phase workflow, enforce these rules:
+
+- Every extracted row, field, number, date, product, transaction, or record must be supported by visible source evidence.
+- **Reconstruction is not completion.** Never fill gaps to make a sequence look complete.
+- **Recurring purchase patterns are not evidence.** Never create a missing transaction from repetition or contextual expectation.
+- **Missing evidence must remain missing.** Mark uncertainty or unreadable/unverified regions instead of guessing.
+- For structured data, confirm that the row is visibly present and that each value belongs to that row. **Never create a missing row.**
 
 ## Required workflow
 
-Apply the canonical **seven-phase** protocol in `references/CORE_POLICY.md`:
+Apply the canonical seven-phase protocol in `references/CORE_POLICY.md`:
 
 1. Phase 1 — Layout reconnaissance
 2. Phase 2 — Segmented reading
