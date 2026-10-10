@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "longocr"
+version = "0.1.0a1"
+description = "Multi-AI Shared Ultra-Long Screenshot OCR Engine with Smart Tiling and Native-Resolution Preservation."
+readme = "README.md"
+requires-python = ">=3.10,<3.13"
+license = {text = "MIT"}
+authors = [
+    {name = "LongImageOCR Authors"}
+]
+keywords = ["ocr", "mcp", "ai-agent", "long-image", "screenshot", "korean-ocr"]
+dependencies = [
+    "rapidocr>=3.10.0",
+    "onnxruntime>=1.16.0",
+    "opencv-python-headless>=4.8.0",
+    "pillow>=9.0.0",
+    "numpy>=1.22.0",
+    "scipy>=1.9.0",
+    "mcp>=2.0.0,<3.0.0"
+]
+
+[project.optional-dependencies]
+paddle = [
+    "paddlepaddle>=2.5.0",
+    "paddleocr>=2.7.0"
+]
+dev = [
+    "pytest>=7.0.0",
+    "build>=1.0.0"
+]
+
+[project.scripts]
+longocr = "longocr.cli:main"
+longocr-mcp = "longocr.mcp_server:main"
+
+[tool.setuptools.packages.find]
+include = ["longocr*"]
