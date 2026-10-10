@@ -39,6 +39,18 @@ class TestGeminiLiteAdapter(unittest.TestCase):
         ):
             self.assertNotIn(forbidden, self.lowered)
 
+    def test_gemini_skill_is_evidence_only(self):
+        self.assertIn("evidence-only", self.lowered)
+        self.assertIn("reconstruction is not completion", self.lowered)
+        self.assertIn("recurring purchase patterns are not evidence", self.lowered)
+        self.assertIn("missing evidence must remain missing", self.lowered)
+
+    def test_gemini_skill_forbids_hallucinated_rows(self):
+        self.assertIn("confirm that the row", self.lowered)
+        self.assertIn("visibly present", self.lowered)
+        self.assertIn("never create a missing row", self.lowered)
+        self.assertIn("contextual expectation", self.lowered)
+
     def test_build_gemini_package_contains_paste_ready_skill(self):
         from scripts.build_lite_packages import build_gemini_package
 
