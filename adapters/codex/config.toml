@@ -1,0 +1,8 @@
+# OpenAI Codex / Agent MCP Server Configuration for LongImageOCR
+
+[mcp_servers.longimageocr]
+command = "longocr-mcp"
+args = []
+env = { PYTHONIOENCODING = "utf-8", PYTHONUTF8 = "1" }
+startup_timeout_sec = 30
+tool_timeout_sec = 180

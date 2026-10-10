@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "longimageocr": {
+      "command": "longocr-mcp",
+      "args": [],
+      "env": {
+        "PYTHONIOENCODING": "utf-8",
+        "PYTHONUTF8": "1"
+      }
+    }
+  }
+}

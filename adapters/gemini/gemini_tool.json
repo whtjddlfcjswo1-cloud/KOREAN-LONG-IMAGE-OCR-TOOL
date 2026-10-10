@@ -1,0 +1,26 @@
+{
+  "function_declarations": [
+    {
+      "name": "long_image_ocr",
+      "description": "Splits vertically long images at safe low-content boundaries, runs native-resolution OCR, deduplicates overlapping lines, and reconstructs structured Markdown and audit reports.",
+      "parameters": {
+        "type": "OBJECT",
+        "properties": {
+          "image_path": {
+            "type": "STRING",
+            "description": "Absolute path to the image file to be recognized."
+          },
+          "mode": {
+            "type": "STRING",
+            "description": "OCR execution mode: 'hybrid' (default, accurate with fast retry), 'fast' (pure CPU ONNX), 'accurate' (PaddleOCR)."
+          },
+          "language": {
+            "type": "STRING",
+            "description": "Language code (default: 'ko')."
+          }
+        },
+        "required": ["image_path"]
+      }
+    }
+  ]
+}

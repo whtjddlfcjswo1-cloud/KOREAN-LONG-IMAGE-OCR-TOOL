@@ -1,0 +1,28 @@
+{
+  "type": "function",
+  "function": {
+    "name": "long_image_ocr",
+    "description": "Performs smart-tiling OCR on ultra-long vertical screenshots, mobile scroll captures, and chat logs without downscaling, returning clean reconstructed Markdown.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "image_path": {
+          "type": "string",
+          "description": "Path to the ultra-long screenshot on disk."
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["fast", "accurate", "hybrid"],
+          "default": "hybrid",
+          "description": "Processing mode. Defaults to 'hybrid'."
+        },
+        "language": {
+          "type": "string",
+          "default": "ko",
+          "description": "Target language: 'ko' for Korean/English mixed, 'en' for English."
+        }
+      },
+      "required": ["image_path"]
+    }
+  }
+}
