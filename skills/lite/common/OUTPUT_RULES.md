@@ -2,9 +2,9 @@
 
 ## Auto mode
 
-Use this by default. For ordinary readable images, avoid unnecessary ceremony. For long, dense, repetitive, tabular, financial, or precision-sensitive images, apply the full seven-phase LongImageOCR Lite policy before answering.
+Use by default. For ordinary readable images, avoid unnecessary ceremony. For long, dense, repetitive, tabular, financial, or precision-sensitive sources, apply the full seven-phase policy before answering.
 
-Return the format the user asked for. If they did not specify a format, preserve the most useful visible structure.
+Return the format the user asked for. If no format was specified, preserve the most useful visible structure.
 
 ## Exact transcription mode
 
@@ -12,10 +12,8 @@ Use when the user asks to read, transcribe, OCR, copy, or reproduce visible text
 
 - Preserve source order and wording.
 - Do not silently autocorrect names, numbers, dates, or identifiers.
-- Represent material unresolved text as `[uncertain: ...]` or `[unreadable]`.
-- If two readings remain plausible, use `[uncertain: A | B]`.
-- Use `[not verified]` when a material region could not actually be inspected.
-- Add a short `Uncertainty notes` section only when unresolved ambiguity materially affects the requested result.
+- Use `[uncertain: ...]`, `[uncertain: A | B]`, `[unreadable]`, or `[not verified]` where needed.
+- Do not claim a source was read if only metadata or indexed text was available.
 
 ## Structured extraction mode
 
@@ -23,25 +21,48 @@ Use for tables, transaction histories, receipts, schedules, logs, lists, and rep
 
 For every output row or record:
 
-1. Confirm that the row is visibly present in the source.
+1. Confirm that the row is visibly present.
 2. Confirm each value belongs to that row.
-3. Do not move a value from a neighboring row because it appears semantically likely.
+3. Do not move values from neighboring rows.
 4. Do not populate a field from contextual expectation.
 5. Never create a missing row to make a sequence complete.
-6. Preserve legitimate repeated source rows unless the policy establishes that they are overlap-created duplicates.
-7. Mark uncertain cells or fields explicitly rather than guessing.
+6. Preserve legitimate repeated rows while removing only overlap-created duplicates.
+7. Mark uncertain cells individually rather than guessing.
 
-**Recurring purchase patterns are not evidence.** A transaction must not appear in the output unless visible source evidence supports that transaction. **Missing evidence must remain missing.**
+**Recurring purchase patterns are not evidence. Missing evidence must remain missing.**
 
-Normalize field names, currencies, timestamps, or schemas only when the user requests normalization or when doing so is necessary to satisfy the requested output format.
+## Source coverage output
+
+For multi-source work, inspect **every provided image** or page before claiming completion. Do not stop after the readable subset. If a source could not be visually inspected, state that limitation rather than silently omitting it.
+
+## Task completion
+
+Do not substitute a methodology report, verification note, or source-status checklist for the output the user requested. **Verification is a gate, not the deliverable** unless the user asked only for verification. After checking the evidence, **continue to the requested deliverable**.
+
+## Structured serialization safety
+
+When producing CSV, TSV, spreadsheets, JSON, or other structured artifacts, preserve **field boundaries** exactly.
+
+- Never build CSV by naively joining fields with a comma.
+- In CSV, **quote** and escape fields containing a **comma**, quote, or newline according to normal CSV rules.
+- In spreadsheets, place each field in its own native cell instead of serializing rows into comma-separated text first.
+- Validate that delimiter characters inside product names, currency strings, notes, and filenames did not shift later columns.
+
+## Summary and aggregation rule
+
+Any summary, total, count, monthly rollup, yearly rollup, or derived statistic must be **recomputed from the final structured rows**, not independently invented or copied from an earlier draft.
+
+Use an explicit **include/exclude** decision for rows such as duplicates, cancellations, funding/top-up transactions, free/zero-value records, and other non-counted evidence. Then recompute totals and counts from the included rows and cross-check them against the detailed table.
+
+If a summary disagrees with the final detailed rows, the detailed evidence-backed rows take precedence until the aggregation is fixed.
 
 ## Precision-sensitive output
 
-Dates, currency, counts, percentages, tickers, identifiers, and row/column associations must reflect the precision pass from the core policy. If a value cannot be verified from the visible image, say so.
+Dates, currency, counts, percentages, tickers, identifiers, and row/column associations must reflect the precision pass. If a value cannot be verified from the visible image, say so.
 
 ## Completeness rule
 
-Do not claim `complete`, `all records`, `fully verified`, or `nothing missing` unless the visible source actually supports that claim. **Reconstruction is not completion.** A partially verified result is better than invented data.
+Do not claim `complete`, `all records`, `fully verified`, or `nothing missing` unless every material accessible source has been visually inspected and the evidence supports the claim. **Reconstruction is not completion.**
 
 ## Runtime boundary
 
