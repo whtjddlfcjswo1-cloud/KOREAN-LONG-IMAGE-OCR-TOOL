@@ -1,8 +1,25 @@
-# Release Notes: LongImageOCR v0.1.0-preview.1 (0.1.0a1)
+# Release Notes
 
-Developer preview of **LongImageOCR**, a multi-AI shared OCR engine for ultra-long vertical screenshots, mobile scroll captures, financial tables, and technical documents.
+## LongImageOCR Lite v0.1
 
-## Key Highlights
+Initial serverless skill-only preview for ChatGPT and Gemini.
+
+### Included
+- Shared seven-phase native-vision OCR inspection policy.
+- ChatGPT skills-only Agent Plugin package with no MCP manifest or external OCR runtime.
+- Gemini Workspace Studio paste-ready skill package with no Flow/backend dependency.
+- Explicit uncertainty handling for ambiguous text and precision-sensitive values.
+- Native-vs-Lite benchmark harness covering CER/WER, line precision/recall/F1, duplicate lines, and numeric-token accuracy.
+
+### Benchmark status
+
+**No measured Lite-vs-native result** is claimed in this release note yet. The committed benchmark fixtures verify the scorer itself; real ChatGPT/Gemini comparisons must be run on the same host/model and source images before publishing improvement percentages.
+
+---
+
+## LongImageOCR Full v0.1.0-preview.1 (0.1.0a1)
+
+Developer preview of **LongImageOCR Full**, a multi-AI shared OCR engine for ultra-long vertical screenshots, mobile scroll captures, financial tables, and technical documents.
 
 ### Modern RapidOCR backend
 - Uses `rapidocr` + `onnxruntime` instead of deprecated `rapidocr_onnxruntime`.
@@ -42,7 +59,7 @@ Developer preview of **LongImageOCR**, a multi-AI shared OCR engine for ultra-lo
 - OpenAI Codex: `adapters/codex/config.toml` and `AGENTS.md`
 - Claude Desktop / Claude Code: `adapters/claude/claude_desktop_config.json` and `CLAUDE.md`
 
-## Installation
+### Installation
 
 ```bash
 git clone https://github.com/whtjddlfcjswo1-cloud/KOREAN-LONG-IMAGE-OCR-TOOL.git

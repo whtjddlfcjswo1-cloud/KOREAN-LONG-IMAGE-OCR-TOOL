@@ -1,0 +1,6 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "longimageocr-lite",
+  "version": "0.1.0",
+  "description": "Improve long-image and OCR-sensitive reading using native model vision without an external OCR server."
+}
