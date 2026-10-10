@@ -65,6 +65,26 @@ class TestLitePolicyContract(unittest.TestCase):
             with self.subTest(token=token):
                 self.assertIn(token, lowered)
 
+    def test_policy_is_evidence_only_and_forbids_pattern_completion(self):
+        lowered = self.all_text.lower()
+        self.assertIn("evidence-only", lowered)
+        self.assertIn("reconstruction is not completion", lowered)
+        self.assertIn("recurring purchase patterns are not evidence", lowered)
+        self.assertIn("missing evidence must remain missing", lowered)
+
+    def test_structured_rows_must_be_visually_verified(self):
+        lowered = self.all_text.lower()
+        self.assertIn("confirm that the row", lowered)
+        self.assertIn("visibly present", lowered)
+        self.assertIn("never create a missing row", lowered)
+        self.assertIn("do not populate a field from contextual expectation", lowered)
+
+    def test_final_audit_removes_untraceable_records(self):
+        lowered = self.core.lower()
+        self.assertIn("trace", lowered)
+        self.assertIn("visible evidence", lowered)
+        self.assertIn("remove", lowered)
+
 
 if __name__ == "__main__":
     unittest.main()
