@@ -1,0 +1,338 @@
+name: Deploy LongImageOCR Staging
+
+on:
+  push:
+    branches: ["release/v0.2.0-preview.1"]
+    paths:
+      - "release-assets/LongImageOCR-v0.2.0-preview.1.zip"
+  workflow_dispatch:
+    inputs:
+      region:
+        description: Google Cloud region
+        required: true
+        default: asia-northeast3
+        type: string
+      service_name:
+        description: Cloud Run service name
+        required: true
+        default: longimageocr-staging
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: longimageocr-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Test, build, deploy, smoke-test
+    runs-on: ubuntu-latest
+    environment: staging
+    env:
+      PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      REGION: ${{ inputs.region || 'asia-northeast3' }}
+      SERVICE_NAME: ${{ inputs.service_name || 'longimageocr-staging' }}
+      ARTIFACT_REPO: longocr-repo
+      IMAGE_NAME: longimageocr
+      GCS_BUCKET_OVERRIDE: ${{ vars.LONGOCR_GCS_BUCKET }}
+      SOURCE_ZIP: release-assets/LongImageOCR-v0.2.0-preview.1.zip
+
+    steps:
+      - name: Checkout release branch
+        uses: actions/checkout@v4
+
+      - name: Validate GitHub staging configuration
+        shell: bash
+        env:
+          HAS_WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER != '' }}
+          HAS_WIF_SERVICE_ACCOUNT: ${{ vars.GCP_SERVICE_ACCOUNT != '' }}
+          HAS_SA_KEY: ${{ secrets.GCP_SA_KEY != '' }}
+          HAS_API_KEY: ${{ secrets.LONGOCR_API_KEY != '' }}
+        run: |
+          set -euo pipefail
+          test -f "$SOURCE_ZIP" || { echo "Missing $SOURCE_ZIP"; exit 1; }
+          test -n "$PROJECT_ID" || { echo "Missing variable GCP_PROJECT_ID"; exit 1; }
+          test "$HAS_API_KEY" = "true" || { echo "Missing secret LONGOCR_API_KEY"; exit 1; }
+          if [[ "$HAS_WIF_PROVIDER" != "true" || "$HAS_WIF_SERVICE_ACCOUNT" != "true" ]]; then
+            test "$HAS_SA_KEY" = "true" || {
+              echo "Configure WIF (GCP_WIF_PROVIDER + GCP_SERVICE_ACCOUNT) or fallback secret GCP_SA_KEY.";
+              exit 1;
+            }
+          fi
+
+      - name: Extract release candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/longocr-src"
+          unzip -q "$SOURCE_ZIP" -d "$RUNNER_TEMP/longocr-src"
+          SOURCE_ROOT="$(find "$RUNNER_TEMP/longocr-src" -maxdepth 2 -name pyproject.toml -printf '%h\n' | head -n 1)"
+          test -n "$SOURCE_ROOT" || { echo "Could not locate extracted LongImageOCR source root"; exit 1; }
+          echo "SOURCE_ROOT=$SOURCE_ROOT" >> "$GITHUB_ENV"
+          echo "Source root: $SOURCE_ROOT"
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install package and test dependencies
+        shell: bash
+        run: |
+          cd "$SOURCE_ROOT"
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      - name: Run release-gate test suite
+        shell: bash
+        run: |
+          cd "$SOURCE_ROOT"
+          python run_tests.py
+
+      - name: Verify CLI entry points
+        run: |
+          longocr --help
+          longocr-mcp --help
+          longocr-api --help
+
+      - name: Authenticate to Google Cloud with WIF
+        if: ${{ vars.GCP_WIF_PROVIDER != '' && vars.GCP_SERVICE_ACCOUNT != '' }}
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - name: Authenticate with service-account key fallback
+        if: ${{ !(vars.GCP_WIF_PROVIDER != '' && vars.GCP_SERVICE_ACCOUNT != '') }}
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+
+      - name: Resolve deployment resources
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "${GCS_BUCKET_OVERRIDE:-}" ]]; then
+            GCS_BUCKET="$GCS_BUCKET_OVERRIDE"
+          else
+            GCS_BUCKET="longocr-jobs-${PROJECT_ID}"
+          fi
+          GCS_BUCKET="${GCS_BUCKET:0:63}"
+          IMAGE_URI="${REGION}-docker.pkg.dev/${PROJECT_ID}/${ARTIFACT_REPO}/${IMAGE_NAME}:${GITHUB_SHA}"
+          RUNTIME_SA_NAME="longocr-runtime"
+          RUNTIME_SA="${RUNTIME_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
+          echo "GCS_BUCKET=$GCS_BUCKET" >> "$GITHUB_ENV"
+          echo "IMAGE_URI=$IMAGE_URI" >> "$GITHUB_ENV"
+          echo "RUNTIME_SA_NAME=$RUNTIME_SA_NAME" >> "$GITHUB_ENV"
+          echo "RUNTIME_SA=$RUNTIME_SA" >> "$GITHUB_ENV"
+
+      - name: Enable required Google Cloud APIs
+        run: |
+          gcloud services enable \
+            run.googleapis.com \
+            artifactregistry.googleapis.com \
+            storage.googleapis.com \
+            iam.googleapis.com \
+            --project "$PROJECT_ID"
+
+      - name: Ensure Artifact Registry repository exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! gcloud artifacts repositories describe "$ARTIFACT_REPO" --location "$REGION" --project "$PROJECT_ID" >/dev/null 2>&1; then
+            gcloud artifacts repositories create "$ARTIFACT_REPO" \
+              --repository-format docker \
+              --location "$REGION" \
+              --project "$PROJECT_ID" \
+              --description "LongImageOCR container images"
+          fi
+
+      - name: Ensure Cloud Run runtime service account exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! gcloud iam service-accounts describe "$RUNTIME_SA" --project "$PROJECT_ID" >/dev/null 2>&1; then
+            gcloud iam service-accounts create "$RUNTIME_SA_NAME" \
+              --project "$PROJECT_ID" \
+              --display-name "LongImageOCR Cloud Run runtime"
+          fi
+
+      - name: Ensure GCS shared job bucket and lifecycle
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! gcloud storage buckets describe "gs://${GCS_BUCKET}" --project "$PROJECT_ID" >/dev/null 2>&1; then
+            gcloud storage buckets create "gs://${GCS_BUCKET}" \
+              --project "$PROJECT_ID" \
+              --location "$REGION" \
+              --uniform-bucket-level-access
+          fi
+          cat > /tmp/gcs-lifecycle.json <<'JSON'
+          {
+            "rule": [
+              {
+                "action": {"type": "Delete"},
+                "condition": {"age": 1}
+              }
+            ]
+          }
+          JSON
+          gcloud storage buckets update "gs://${GCS_BUCKET}" --lifecycle-file=/tmp/gcs-lifecycle.json
+          gcloud storage buckets add-iam-policy-binding "gs://${GCS_BUCKET}" \
+            --member="serviceAccount:${RUNTIME_SA}" \
+            --role="roles/storage.objectAdmin" \
+            --quiet
+
+      - name: Configure Docker auth
+        run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+
+      - name: Build container on GitHub runner
+        shell: bash
+        run: |
+          cd "$SOURCE_ROOT"
+          docker build -f deploy/Dockerfile -t "$IMAGE_URI" .
+
+      - name: Local container smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run -d --rm --name longocr-local-smoke \
+            -p 18080:8080 \
+            -e LONGOCR_API_KEY=local-smoke-token \
+            -e LONGOCR_STORAGE_DIR=/tmp/longocr_jobs \
+            "$IMAGE_URI"
+          trap 'docker logs longocr-local-smoke || true; docker stop longocr-local-smoke >/dev/null 2>&1 || true' EXIT
+          for i in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:18080/health >/tmp/local-health.json; then
+              cat /tmp/local-health.json
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1
+
+      - name: Push image
+        run: docker push "$IMAGE_URI"
+
+      - name: Deploy Cloud Run staging
+        shell: bash
+        env:
+          LONGOCR_API_KEY: ${{ secrets.LONGOCR_API_KEY }}
+        run: |
+          set -euo pipefail
+          gcloud run deploy "$SERVICE_NAME" \
+            --project "$PROJECT_ID" \
+            --image "$IMAGE_URI" \
+            --region "$REGION" \
+            --platform managed \
+            --allow-unauthenticated \
+            --service-account "$RUNTIME_SA" \
+            --cpu 2 \
+            --memory 4Gi \
+            --concurrency 1 \
+            --timeout 300 \
+            --min 0 \
+            --execution-environment gen2 \
+            --set-env-vars "LONGOCR_STORAGE_DIR=/tmp/longocr_jobs,LONGOCR_GCS_BUCKET=${GCS_BUCKET},LONGOCR_FAIL_FAST_GCS=1,LONGOCR_JOB_TTL_SECONDS=3600" \
+            --set-env-vars "LONGOCR_API_KEY=${LONGOCR_API_KEY}" \
+            --quiet
+          SERVICE_URL="$(gcloud run services describe "$SERVICE_NAME" --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')"
+          test -n "$SERVICE_URL"
+          echo "SERVICE_URL=$SERVICE_URL" >> "$GITHUB_ENV"
+          echo "MCP_URL=${SERVICE_URL}/mcp" >> "$GITHUB_ENV"
+
+      - name: Verify live health and GCS
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --show-error --silent "$SERVICE_URL/health" | tee /tmp/live-health.json
+          python - <<'PY'
+          import json
+          obj=json.load(open('/tmp/live-health.json', encoding='utf-8'))
+          assert obj.get('status') in {'ok', 'healthy'}, obj
+          assert obj.get('gcs_enabled') is True, obj
+          print('health OK:', obj)
+          PY
+
+      - name: Live OCR smoke test and job follow-up
+        shell: bash
+        env:
+          LONGOCR_API_KEY: ${{ secrets.LONGOCR_API_KEY }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from PIL import Image, ImageDraw
+          img=Image.new('RGB',(900,2400),'white')
+          d=ImageDraw.Draw(img)
+          for i in range(60):
+              d.text((40,30+i*38),f'LongImageOCR staging smoke 2026 line {i:02d} KRW 123,456',fill='black')
+          img.save('/tmp/longocr-smoke.png')
+          PY
+          curl --fail --show-error --silent \
+            -X POST "$SERVICE_URL/v1/ocr" \
+            -H "Authorization: Bearer ${LONGOCR_API_KEY}" \
+            -F "file=@/tmp/longocr-smoke.png" \
+            -F "mode=hybrid" \
+            -F "language=ko" \
+            > /tmp/ocr.json
+          cat /tmp/ocr.json
+          JOB_ID="$(python - <<'PY'
+          import json
+          print(json.load(open('/tmp/ocr.json',encoding='utf-8'))['job_id'])
+          PY
+          )"
+          test -n "$JOB_ID"
+          curl --fail --show-error --silent \
+            -H "Authorization: Bearer ${LONGOCR_API_KEY}" \
+            "$SERVICE_URL/v1/jobs/${JOB_ID}" | tee /tmp/job-status.json
+
+      - name: Build configured ChatGPT Plugin and Workspace manifest
+        shell: bash
+        run: |
+          cd "$SOURCE_ROOT"
+          python package_release.py --mcp-url "$MCP_URL"
+          test -f dist/LongImageOCR-ChatGPT-Plugin-v0.2.0-preview.1.zip
+          test -f dist/appsscript.production.json
+
+      - name: Collect staging artifacts
+        shell: bash
+        run: |
+          mkdir -p staging-artifacts
+          cp "$SOURCE_ROOT/dist/LongImageOCR-ChatGPT-Plugin-v0.2.0-preview.1.zip" staging-artifacts/
+          cp "$SOURCE_ROOT/dist/appsscript.production.json" staging-artifacts/
+          cp /tmp/live-health.json staging-artifacts/
+          cp /tmp/job-status.json staging-artifacts/
+          printf '%s\n' "$SERVICE_URL" > staging-artifacts/cloud-run-url.txt
+          printf '%s\n' "$MCP_URL" > staging-artifacts/mcp-url.txt
+
+      - name: Upload staging integration artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: longimageocr-staging-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 14
+          path: staging-artifacts/
+
+      - name: Summary
+        shell: bash
+        run: |
+          {
+            echo '## LongImageOCR staging deployed'
+            echo
+            echo "- Service: \`$SERVICE_URL\`"
+            echo "- MCP: \`$MCP_URL\`"
+            echo "- GCS: \`gs://$GCS_BUCKET\`"
+            echo "- Image: \`$IMAGE_URI\`"
+            echo "- Artifact: \`longimageocr-staging-${GITHUB_SHA}\`"
+            echo
+            echo 'Next: download the workflow artifact and run live ChatGPT + Workspace Studio smoke tests.'
+          } >> "$GITHUB_STEP_SUMMARY"
